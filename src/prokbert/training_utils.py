@@ -484,7 +484,7 @@ def get_torch_data_from_segmentdb_classification(tokenizer, segmentdb, L=None, r
                                                 truncate_zeros = True,
                                                 numpy_dtype = np.int32)
     
-    torchdb_annot = torchdb.merge(segmentdb[['segment_id', 'y', 'label']], how='left', left_on = 'segment_id', right_on = 'segment_id')
+    torchdb_annot = torchdb.merge(segmentdb[['segment_id', 'y', 'class_label']], how='left', left_on = 'segment_id', right_on = 'segment_id')
     y=torch.tensor(torchdb_annot['y'], dtype=torch.long)
     X = torch.tensor(X, dtype=torch.long)
 
