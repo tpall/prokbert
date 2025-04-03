@@ -1,8 +1,4 @@
 FROM nvidia/cuda:12.1.1-base-ubuntu22.04
-LABEL maintainer="Balázs Ligeti <obbalasz@gmail.com>"
-
-# Avoid prompts from apt
-ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,29 +13,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Create and switch to the 'prokbert' user before installing Miniconda
-RUN useradd -m -s /bin/bash prokbert
-USER prokbert
-WORKDIR /home/prokbert
+# Install Miniconda
+# entrypoint.sh is from https://gist.github.com/xkortex/84226629c2a1286120bf139b93bca9bf
+COPY envs/entrypoint.sh ./
+RUN chmod +x /entrypoint.sh
+ENV PATH /opt/miniconda/bin:${PATH}
+ARG PATH /opt/miniconda/bin:${PATH}
+RUN mkdir -p /opt/conda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /opt/conda/miniconda.sh \ 
+    && bash /opt/conda/miniconda.sh -b -p /opt/miniconda \
+    && rm -f /opt/conda/miniconda.sh \
+    && conda init bash \
+    && echo 'conda activate "${CONDA_TARGET_ENV:-base}"' >>  ~/.bashrc
 
-# Install Miniconda as 'prokbert'
-RUN mkdir -p /home/prokbert/bin && \
-    cd /home/prokbert/bin && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-py311_23.10.0-1-Linux-x86_64.sh && \
-    chmod +x Miniconda3-py311_23.10.0-1-Linux-x86_64.sh && \
-    ./Miniconda3-py311_23.10.0-1-Linux-x86_64.sh -b -p /home/prokbert/miniconda3 && \
-    /home/prokbert/miniconda3/bin/conda init bash && \
-    echo "source /home/prokbert/miniconda3/etc/profile.d/conda.sh" >> /home/prokbert/.bashrc
+# Install some dependencies
+COPY envs/environment.yml /tmp
+RUN . /opt/miniconda/bin/activate \
+    && conda env update --name base -f /tmp/environment.yml \
+    && conda clean -afy
 
-# Set PATH to include the user's conda and potentially other user-specific binaries
-ENV PATH /home/prokbert/miniconda3/bin:$PATH
+# Install prokbert
+RUN mkdir /app 
+WORKDIR /app
+COPY . ./ 
+RUN pip install -e .
 
-
-# Use pip to install prokbert and other dependencies
-RUN pip install prokbert seaborn umap-learn jupyterlab
-
-# Set up a work directory for prokbert stuff
-RUN git clone https://github.com/nbrg-ppcu/prokbert.git
-USER prokbert
-
-CMD ["/bin/bash"]
+SHELL ["/entrypoint.sh", "/bin/bash", "-c"]
